@@ -65,7 +65,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 
 
 class nnUNetTrainer(object):
-    def __init__(self, plans: dict, configuration: str, fold: int, dataset_json: dict, unpack_dataset: bool = True,
+    def __init__(self, plans: dict, configuration: str, model_name: str, fold: int, dataset_json: dict, unpack_dataset: bool = True,
                  device: torch.device = torch.device('cuda')):
         # From https://grugbrain.dev/. Worth a read ya big brains ;-)
 
@@ -138,15 +138,28 @@ class nnUNetTrainer(object):
                  self.configuration_manager.previous_stage_name, 'predicted_next_stage', self.configuration_name) \
                 if self.is_cascaded else None
 
+        ### Simple logging. Don't take that away from me!
+        # initialize log file. This is just our log for the print statements etc. Not to be confused with lightning
+        # logging
+        timestamp = datetime.now()
+        maybe_mkdir_p(self.output_folder)
+        self.log_file = join(self.output_folder, "training_log_%d_%d_%d_%02.0d_%02.0d_%02.0d.txt" %
+                             (timestamp.year, timestamp.month, timestamp.day, timestamp.hour, timestamp.minute,
+                              timestamp.second))
+        self.logger = nnUNetLogger()
+
         ### Some hyperparameters for you to fiddle with
         self.initial_lr = 1e-2
         self.weight_decay = 3e-5
         self.oversample_foreground_percent = 0.33
-        self.num_iterations_per_epoch = 250
-        self.num_val_iterations_per_epoch = 50
-        self.num_epochs = 100
+        batch_size = self.configuration_manager.configuration['batch_size']
+        tr_keys, val_keys = self.do_split()
+        self.num_iterations_per_epoch = len(tr_keys) // batch_size
+        self.num_val_iterations_per_epoch = len(val_keys) // batch_size
+        self.num_epochs = 450
         self.current_epoch = 0
         self.enable_deep_supervision = True
+        self.model_name = model_name
 
         ### Dealing with labels/regions
         self.label_manager = self.plans_manager.get_label_manager(dataset_json)
@@ -159,15 +172,6 @@ class nnUNetTrainer(object):
         self.grad_scaler = GradScaler() if self.device.type == 'cuda' else None
         self.loss = None  # -> self.initialize
 
-        ### Simple logging. Don't take that away from me!
-        # initialize log file. This is just our log for the print statements etc. Not to be confused with lightning
-        # logging
-        timestamp = datetime.now()
-        maybe_mkdir_p(self.output_folder)
-        self.log_file = join(self.output_folder, "training_log_%d_%d_%d_%02.0d_%02.0d_%02.0d.txt" %
-                             (timestamp.year, timestamp.month, timestamp.day, timestamp.hour, timestamp.minute,
-                              timestamp.second))
-        self.logger = nnUNetLogger()
 
         ### placeholders
         self.dataloader_train = self.dataloader_val = None  # see on_train_start
@@ -207,6 +211,7 @@ class nnUNetTrainer(object):
                 self.dataset_json,
                 self.configuration_manager,
                 self.num_input_channels,
+                self.model_name,
                 self.enable_deep_supervision,
             ).to(self.device)
             # compile network for free speedup
@@ -1053,6 +1058,13 @@ class nnUNetTrainer(object):
             self.logger.plot_progress_png(self.output_folder)
 
         self.current_epoch += 1
+
+        if self.network.monogenic:
+            self.logger.log_monogenic_params(
+                current_epoch=self.current_epoch,
+                mono_layer=self.network.mono,
+                output_folder=self.output_folder
+            )
 
     def save_checkpoint(self, filename: str) -> None:
         if self.local_rank == 0:

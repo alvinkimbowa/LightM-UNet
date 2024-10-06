@@ -1,3 +1,5 @@
+import os
+import json
 import matplotlib
 from batchgenerators.utilities.file_and_folder_operations import join
 
@@ -101,3 +103,19 @@ class nnUNetLogger(object):
 
     def load_checkpoint(self, checkpoint: dict):
         self.my_fantastic_logging = checkpoint
+
+    def log_monogenic_params(self, current_epoch, mono_layer, output_folder):
+        key_values = mono_layer.get_params()
+        print(f'Logging monogenic layer parameters for epoch {current_epoch}: {key_values}')
+
+        if not os.path.exists(join(output_folder, 'monogenic_params.json')):
+            with open(join(output_folder, 'monogenic_params.json'), 'w') as f:
+                json.dump([key_values], f, indent=4)
+                return
+
+        with open(join(output_folder, 'monogenic_params.json'), 'r') as f:
+            data = json.load(f)
+        
+        data.append([key_values])
+        with open(join(output_folder, 'monogenic_params.json'), 'w') as f:
+            json.dump(data, f, indent=4)

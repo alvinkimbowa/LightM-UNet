@@ -30,6 +30,7 @@ def find_free_network_port() -> int:
 
 def get_trainer_from_args(dataset_name_or_id: Union[int, str],
                           configuration: str,
+                          model_name: str,
                           fold: int,
                           trainer_name: str = 'nnUNetTrainer',
                           plans_identifier: str = 'nnUNetPlans',
@@ -62,7 +63,7 @@ def get_trainer_from_args(dataset_name_or_id: Union[int, str],
     plans_file = join(preprocessed_dataset_folder_base, plans_identifier + '.json')
     plans = load_json(plans_file)
     dataset_json = load_json(join(preprocessed_dataset_folder_base, 'dataset.json'))
-    nnunet_trainer = nnunet_trainer(plans=plans, configuration=configuration, fold=fold,
+    nnunet_trainer = nnunet_trainer(plans=plans, configuration=configuration, model_name=model_name, fold=fold,
                                     dataset_json=dataset_json, unpack_dataset=not use_compressed, device=device)
     return nnunet_trainer
 
@@ -137,6 +138,7 @@ def run_ddp(rank, dataset_name_or_id, configuration, fold, tr, p, use_compressed
 
 def run_training(dataset_name_or_id: Union[str, int],
                  configuration: str, fold: Union[int, str],
+                 model_name: str,
                  trainer_class_name: str = 'nnUNetTrainer',
                  plans_identifier: str = 'nnUNetPlans',
                  pretrained_weights: Optional[str] = None,
@@ -186,7 +188,7 @@ def run_training(dataset_name_or_id: Union[str, int],
                  nprocs=num_gpus,
                  join=True)
     else:
-        nnunet_trainer = get_trainer_from_args(dataset_name_or_id, configuration, fold, trainer_class_name,
+        nnunet_trainer = get_trainer_from_args(dataset_name_or_id, configuration, model_name, fold, trainer_class_name,
                                                plans_identifier, use_compressed_data, device=device)
 
         if disable_checkpointing:
@@ -249,6 +251,8 @@ def run_training_entry():
                     help="Use this to set the device the training should run with. Available options are 'cuda' "
                          "(GPU), 'cpu' (CPU) and 'mps' (Apple M1/M2). Do NOT use this to set which GPU ID! "
                          "Use CUDA_VISIBLE_DEVICES=X nnUNetv2_train [...] instead!")
+    parser.add_argument('--model_name', type=str, required=True,
+                        help='Name of the model to train.')
     args = parser.parse_args()
 
     assert args.device in ['cpu', 'cuda', 'mps'], f'-device must be either cpu, mps or cuda. Other devices are not tested/supported. Got: {args.device}.'
@@ -265,7 +269,7 @@ def run_training_entry():
     else:
         device = torch.device('mps')
 
-    run_training(args.dataset_name_or_id, args.configuration, args.fold, args.tr, args.p, args.pretrained_weights,
+    run_training(args.dataset_name_or_id, args.configuration, args.fold, args.model_name, args.tr, args.p, args.pretrained_weights,
                  args.num_gpus, args.use_compressed, args.npz, args.c, args.val, args.disable_checkpointing, args.val_best,
                  device=device)
 

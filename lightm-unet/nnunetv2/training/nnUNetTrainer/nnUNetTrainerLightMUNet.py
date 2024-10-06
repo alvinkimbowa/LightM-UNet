@@ -7,6 +7,7 @@ import torch
 
 from nnunetv2.training.loss.dice import get_tp_fp_fn_tn
 
+from dynamic_network_architectures.building_blocks.phase_asymmono import PhaseAsymmono2D
 from nnunetv2.nets.LightMUNet import LightMUNet
 from torch.optim import Adam
 
@@ -16,12 +17,13 @@ class nnUNetTrainerLightMUNet(nnUNetTrainerNoDeepSupervision):
             self,
             plans: dict,
             configuration: str,
+            model_name: str,
             fold: int,
             dataset_json: dict,
             unpack_dataset: bool = True,
             device: torch.device = torch.device('cuda')
         ):
-        super().__init__(plans, configuration, fold, dataset_json, unpack_dataset, device)
+        super().__init__(plans, configuration, model_name, fold, dataset_json, unpack_dataset, device)
         self.grad_scaler = None
         self.initial_lr = 1e-4
         self.weight_decay = 1e-5
@@ -30,7 +32,7 @@ class nnUNetTrainerLightMUNet(nnUNetTrainerNoDeepSupervision):
     def build_network_architecture(plans_manager: PlansManager,
                                    dataset_json,
                                    configuration_manager: ConfigurationManager,
-                                   num_input_channels,
+                                   num_input_channels, model_name: str,
                                    enable_deep_supervision: bool = False) -> nn.Module:
         
         label_manager = plans_manager.get_label_manager(dataset_json)
@@ -43,6 +45,11 @@ class nnUNetTrainerLightMUNet(nnUNetTrainerNoDeepSupervision):
             blocks_down=[1, 2, 2, 4],
             blocks_up=[1, 1, 1],
         )
+
+        if "monogenic" in model_name or "phaseasymmono" in model_name:
+            model = MonoModel(model)
+        else:
+            model.monogenic = False
 
         return model
     
@@ -125,3 +132,16 @@ class nnUNetTrainerLightMUNet(nnUNetTrainerNoDeepSupervision):
     
     def set_deep_supervision_enabled(self, enabled: bool):
         pass
+
+
+class MonoModel(torch.nn.Module):
+    def __init__(self, model):
+        super(MonoModel, self).__init__()
+        self.model = model
+        self.mono = PhaseAsymmono2D(nscale=1, return_phase=True)
+        self.monogenic = True
+    
+    def forward(self, x):
+        x = self.mono(x)
+        x = self.model(x)
+        return x
