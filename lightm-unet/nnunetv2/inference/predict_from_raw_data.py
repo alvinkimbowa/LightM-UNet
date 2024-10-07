@@ -37,6 +37,7 @@ from nnunetv2.utilities.utils import create_lists_from_splitted_dataset_folder
 
 class nnUNetPredictor(object):
     def __init__(self,
+                 model_name: str,
                  tile_step_size: float = 0.5,
                  use_gaussian: bool = True,
                  use_mirroring: bool = True,
@@ -100,7 +101,7 @@ class nnUNetPredictor(object):
         trainer_class = recursive_find_python_class(join(nnunetv2.__path__[0], "training", "nnUNetTrainer"),
                                                     trainer_name, 'nnunetv2.training.nnUNetTrainer')
         network = trainer_class.build_network_architecture(plans_manager, dataset_json, configuration_manager,
-                                                           num_input_channels, enable_deep_supervision=False)
+                                                           num_input_channels, model_name=self.model_name, enable_deep_supervision=False)
         self.plans_manager = plans_manager
         self.configuration_manager = configuration_manager
         self.list_of_parameters = parameters
@@ -781,7 +782,8 @@ def predict_entry_point():
     parser.add_argument('--disable_progress_bar', action='store_true', required=False, default=False,
                         help='Set this flag to disable progress bar. Recommended for HPC environments (non interactive '
                              'jobs)')
-
+    parser.add_argument('--model_name', type=str, required=True,
+                        help='Name of the model to train.')
     print(
         "\n#######################################################################\nPlease cite the following paper "
         "when using nnU-Net:\n"
@@ -822,7 +824,8 @@ def predict_entry_point():
                                 device=device,
                                 verbose=args.verbose,
                                 verbose_preprocessing=False,
-                                allow_tqdm=not args.disable_progress_bar)
+                                allow_tqdm=not args.disable_progress_bar,
+                                model_name=args.model_name)
     predictor.initialize_from_trained_model_folder(
         model_folder,
         args.f,
