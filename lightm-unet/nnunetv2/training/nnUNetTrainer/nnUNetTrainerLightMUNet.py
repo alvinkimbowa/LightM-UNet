@@ -7,7 +7,7 @@ import torch
 
 from nnunetv2.training.loss.dice import get_tp_fp_fn_tn
 
-from dynamic_network_architectures.building_blocks.phase_asymmono import PhaseAsymmono2D
+from mono2D import Mono2D
 from nnunetv2.nets.LightMUNet import LightMUNet
 from torch.optim import Adam
 
@@ -47,7 +47,12 @@ class nnUNetTrainerLightMUNet(nnUNetTrainerNoDeepSupervision):
         )
 
         if "monogenic" in model_name or "phaseasymmono" in model_name:
-            model = MonoModel(model)
+            monogenic_kwargs = configuration_manager.configuration['architecture']['arch_kwargs']
+            nscale = monogenic_kwargs['nscale']
+            return_phase = monogenic_kwargs['return_phase']
+            return_phase_asym = monogenic_kwargs['return_phase_asym']
+            trainable = monogenic_kwargs['trainable']
+            model = MonoModel(model, nscale, return_phase, return_phase_asym, trainable)
         else:
             model.monogenic = False
 
@@ -135,10 +140,10 @@ class nnUNetTrainerLightMUNet(nnUNetTrainerNoDeepSupervision):
 
 
 class MonoModel(torch.nn.Module):
-    def __init__(self, model):
+    def __init__(self, model, nscale, return_phase, return_phase_asym, trainable):
         super(MonoModel, self).__init__()
         self.model = model
-        self.mono = PhaseAsymmono2D(nscale=1, return_phase=True)
+        self.mono = Mono2D(nscale=nscale, return_phase=return_phase, return_phase_asym=return_phase_asym, trainable=trainable)
         self.monogenic = True
     
     def forward(self, x):
