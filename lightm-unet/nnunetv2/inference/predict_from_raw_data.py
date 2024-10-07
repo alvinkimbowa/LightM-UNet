@@ -49,6 +49,7 @@ class nnUNetPredictor(object):
         self.verbose = verbose
         self.verbose_preprocessing = verbose_preprocessing
         self.allow_tqdm = allow_tqdm
+        self.model_name = model_name
 
         self.plans_manager, self.configuration_manager, self.list_of_parameters, self.network, self.dataset_json, \
         self.trainer_name, self.allowed_mirroring_axes, self.label_manager = None, None, None, None, None, None, None, None
