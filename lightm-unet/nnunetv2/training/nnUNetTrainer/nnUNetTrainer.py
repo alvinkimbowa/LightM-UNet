@@ -156,7 +156,7 @@ class nnUNetTrainer(object):
         tr_keys, val_keys = self.do_split()
         self.num_iterations_per_epoch = len(tr_keys) // batch_size
         self.num_val_iterations_per_epoch = len(val_keys) // batch_size
-        self.num_epochs = 350
+        self.num_epochs = 250
         self.current_epoch = 0
         self.enable_deep_supervision = True
         self.model_name = model_name
